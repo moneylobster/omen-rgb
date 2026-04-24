@@ -1,0 +1,12 @@
+# omenrgb udev rules — place in /etc/udev/rules.d/60-omenrgb.rules
+#
+# After installing:
+#   sudo cp 60-omenrgb.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#   sudo usermod -aG i2c $USER   # log out/in
+
+# HP Omen 30L/40L case controller (VID 0x103C, PID 0x84FD) — HID
+KERNEL=="hidraw*", ATTRS{idVendor}=="103c", ATTRS{idProduct}=="84fd", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+
+# i2c buses used for Fury DDR5 SMBus writes
+KERNEL=="i2c-[0-9]*", GROUP="i2c", MODE="0660"
