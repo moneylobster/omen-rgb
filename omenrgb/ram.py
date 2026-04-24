@@ -15,6 +15,7 @@ from smbus2 import SMBus
 RGB = Tuple[int, int, int]
 
 _DELAY = 0.01
+_WRITE_DELAY = 0.0005   # inter-write delay; Fury SMBus saturates without it
 
 # Registers (from KingstonFuryDRAMController.h)
 _REG_APPLY = 0x08
@@ -61,12 +62,13 @@ class FuryRAM:
     # ---- low level ----
 
     def _w(self, addr: int, reg: int, val: int, retries: int = 5) -> bool:
-        for _ in range(retries):
+        for attempt in range(retries):
             try:
                 self._bus.write_byte_data(addr, reg, val)
+                time.sleep(_WRITE_DELAY)
                 return True
             except OSError:
-                time.sleep(_DELAY)
+                time.sleep(_DELAY * (attempt + 1))
         return False
 
     @contextmanager
@@ -87,6 +89,8 @@ class FuryRAM:
             for i, a in enumerate(self.addrs):
                 self._w(a, _REG_MODE, _MODE_DIRECT)
                 self._w(a, _REG_BRIGHTNESS, brightness)
+                # INDEX=0 on all sticks — per-stick indices put the controllers
+                # into sync-follower mode where they mirror stick 0's color.
                 self._w(a, _REG_INDEX, 0)
                 self._w(a, _REG_NUM_SLOTS, min(len(self.addrs), 4))
 
