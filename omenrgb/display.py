@@ -125,11 +125,12 @@ class TextDisplay:
     WIDTH = 12
     HEIGHT = 4
 
-    def __init__(self, ram: FuryRAM, invert_rows: bool = False, flip_cols: bool = False):
+    def __init__(self, ram: FuryRAM, invert_rows: bool = True, flip_cols: bool = False):
         """
         invert_rows: if True, stick index 0 is bottom row instead of top
         flip_cols: if True, LED index 0 is right instead of left
-        Adjust these after a test pattern to match your physical orientation.
+        Defaults match a HP Omen 30L/40L with sticks mounted vertically
+        (stick 0 at bottom, LED 0 on the left). Override for other layouts.
         """
         if ram.num_sticks < self.HEIGHT:
             raise ValueError(f"need at least {self.HEIGHT} sticks, got {ram.num_sticks}")

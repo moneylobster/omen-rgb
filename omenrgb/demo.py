@@ -21,7 +21,7 @@ from .tqdm_hook import RGBtqdm
 def test_pattern():
     """Paint each stick a different color — use to verify physical order."""
     with FuryRAM() as ram:
-        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (180, 255, 0)]
         for i in range(ram.num_sticks):
             row = [colors[i % len(colors)]] * ram.LEDS_PER_STICK
             ram.set_stick(i, row)
