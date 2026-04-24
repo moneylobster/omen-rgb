@@ -5,6 +5,7 @@ controllers over SMBus. Protocol reversed from OpenRGB's
 KingstonFuryDRAMController.cpp (GPL-2.0, credit to Geofrey Mon and Milan Cermak).
 """
 
+import os
 import threading
 import time
 from contextlib import contextmanager
@@ -15,7 +16,7 @@ from smbus2 import SMBus
 RGB = Tuple[int, int, int]
 
 _DELAY = 0.01
-_WRITE_DELAY = 0.0005   # inter-write delay; Fury SMBus saturates without it
+_WRITE_DELAY = float(os.environ.get("OMENRGB_WRITE_DELAY", "0.0005"))
 
 # Registers (from KingstonFuryDRAMController.h)
 _REG_APPLY = 0x08
@@ -73,7 +74,7 @@ class FuryRAM:
 
     @contextmanager
     def _transaction(self):
-        """Wrap a batch of writes in begin/end transaction markers."""
+        """BEGIN/END broadcast to all sticks — for init and other all-stick ops."""
         for a in self.addrs:
             self._w(a, _REG_APPLY, _BEGIN)
         time.sleep(_DELAY)
@@ -82,6 +83,19 @@ class FuryRAM:
         finally:
             for a in self.addrs:
                 self._w(a, _REG_APPLY, _END)
+            time.sleep(_DELAY)
+
+    @contextmanager
+    def _stick_transaction(self, addr: int):
+        # Interleaving writes across sticks with all BEGIN windows open
+        # simultaneously produced wrong colors; isolating each controller's
+        # apply window to its own writes fixed it.
+        self._w(addr, _REG_APPLY, _BEGIN)
+        time.sleep(_DELAY)
+        try:
+            yield
+        finally:
+            self._w(addr, _REG_APPLY, _END)
             time.sleep(_DELAY)
 
     def _init_sticks(self, brightness: int) -> None:
@@ -123,13 +137,14 @@ class FuryRAM:
             if len(row) != self.LEDS_PER_STICK:
                 raise ValueError(f"row has {len(row)} cols, expected {self.LEDS_PER_STICK}")
 
-        with self._lock, self._transaction():
-            for led in range(self.LEDS_PER_STICK):
-                for s, a in enumerate(self.addrs):
-                    r, g, b = grid[s][led]
-                    self._w(a, _REG_BASE_R + 3 * led, r & 0xFF)
-                    self._w(a, _REG_BASE_G + 3 * led, g & 0xFF)
-                    self._w(a, _REG_BASE_B + 3 * led, b & 0xFF)
+        with self._lock:
+            for s, a in enumerate(self.addrs):
+                with self._stick_transaction(a):
+                    for led in range(self.LEDS_PER_STICK):
+                        r, g, b = grid[s][led]
+                        self._w(a, _REG_BASE_R + 3 * led, r & 0xFF)
+                        self._w(a, _REG_BASE_G + 3 * led, g & 0xFF)
+                        self._w(a, _REG_BASE_B + 3 * led, b & 0xFF)
 
     def set_linear(self, pixels: Sequence[RGB]) -> None:
         """Flat list of (r,g,b), length = num_sticks * 12.
@@ -148,7 +163,7 @@ class FuryRAM:
         if len(pixels) != self.LEDS_PER_STICK:
             raise ValueError(f"got {len(pixels)}, expected {self.LEDS_PER_STICK}")
         addr = self.addrs[idx]
-        with self._lock, self._transaction():
+        with self._lock, self._stick_transaction(addr):
             for led, (r, g, b) in enumerate(pixels):
                 self._w(addr, _REG_BASE_R + 3 * led, r & 0xFF)
                 self._w(addr, _REG_BASE_G + 3 * led, g & 0xFF)
