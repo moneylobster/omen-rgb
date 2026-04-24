@@ -87,7 +87,7 @@ class FuryRAM:
             for i, a in enumerate(self.addrs):
                 self._w(a, _REG_MODE, _MODE_DIRECT)
                 self._w(a, _REG_BRIGHTNESS, brightness)
-                self._w(a, _REG_INDEX, i)
+                self._w(a, _REG_INDEX, 0)
                 self._w(a, _REG_NUM_SLOTS, min(len(self.addrs), 4))
 
     # ---- public API ----
