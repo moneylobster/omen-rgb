@@ -83,8 +83,11 @@ class Dashboard:
                 fans.append((0, 0, 0))
             self.omen.set_fans(*fans[:3])
         if self.ram:
-            # Also fill RAM proportionally
-            self.progress(stage / total_stages if total_stages else 0.0, cold=color, hot=color)
+            frac = stage / total_stages if total_stages else 0.0
+            n = self.ram.total_leds
+            lit = int(frac * n)
+            pixels: List[RGB] = [color if i < lit else (0, 0, 0) for i in range(n)]
+            self.ram.set_linear(pixels)
 
     # ---- status ----
 

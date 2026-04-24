@@ -9,10 +9,10 @@ is a 4-bit row pattern where bit 0 = top row, bit 3 = bottom row. This makes
 the scroller trivial: flatten glyph columns into a single list and window over it.
 
 Example — '0':
-    . X .     col 0: rows 1,2   -> bits 0110 = 0x6
-    X . X     col 1: rows 0,3   -> bits 1001 = 0x9
-    X . X     col 2: rows 1,2   -> bits 0110 = 0x6
-    . X .
+    X X X     col 0: rows 0,1,2,3 -> bits 1111 = 0xF
+    X . X     col 1: rows 0,3     -> bits 1001 = 0x9
+    X . X     col 2: rows 0,1,2,3 -> bits 1111 = 0xF
+    X X X
 """
 
 from typing import Dict, List, Tuple
