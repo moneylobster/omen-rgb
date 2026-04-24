@@ -78,16 +78,30 @@ def scroll():
 
 
 def vertical():
-    """Show text rotated 90° CW, stacked down the LED strip."""
+    """Two big 4x6 digits stacked down the strip — designed for 0..99% readouts."""
     with FuryRAM() as ram:
         ram.set_brightness(64)  # reduce bleed so letters are distinguishable
         td = TextDisplay(ram)
-        print("vertical 'HI'")
-        td.show_vertical("HI", color=(0, 255, 128))
-        time.sleep(3)
-        print("vertical '123'")
-        td.show_vertical("123", color=(255, 128, 0))
-        time.sleep(3)
+        for pct in (7, 42, 75, 99):
+            print(f"show_big_number({pct})")
+            td.show_big_number(pct, color=(0, 255, 128))
+            time.sleep(1.5)
+        print("letters 'HI'")
+        td.show_vertical("HI", color=(255, 128, 0))
+        time.sleep(2)
+
+
+def percent_ramp():
+    """Ramp 0..99 as big stacked digits — simulates training progress."""
+    with FuryRAM() as ram:
+        ram.set_brightness(64)
+        td = TextDisplay(ram)
+        for pct in range(0, 100, 3):
+            color = gradient((255, 64, 0), (0, 255, 64), pct / 99)
+            td.show_big_number(pct, color=color)
+            time.sleep(0.08)
+        td.show_big_number(99, color=(0, 255, 64))
+        time.sleep(2)
 
 
 def training():
@@ -135,6 +149,7 @@ DEMOS = {
     "progress": progress,
     "scroll": scroll,
     "vertical": vertical,
+    "percent_ramp": percent_ramp,
     "training": training,
     "fans": fans_progress_demo,
 }

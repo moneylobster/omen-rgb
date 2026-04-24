@@ -9,7 +9,7 @@ import threading
 import time
 from typing import List, Optional, Sequence, Tuple
 
-from .font import glyph_columns, render_columns
+from .font import VERT_CHAR_H, VERT_CHAR_W, glyph_columns, glyph_vertical, render_columns
 from .omen import OmenCase, Zone
 from .ram import FuryRAM, RGB
 
@@ -230,42 +230,49 @@ class TextDisplay:
         text: str,
         color: RGB = (0, 255, 0),
         bg: RGB = (0, 0, 0),
-        spacing: Optional[int] = None,
+        spacing: int = 0,
     ) -> None:
-        """Render text rotated 90° CW so it reads down the LED strip.
+        """Render text using the 4x6 vertical font, stacked down the LED strip.
 
-        Each char is 4 wide × 3 tall after rotation: the 4 cols span the 4 sticks,
-        the 3 rows consume 3 LEDs along the strip. `spacing` blank LEDs between chars.
-        Fits ~3 chars with spacing=1 on a 12-LED strip, 4 chars with spacing=0.
+        Each char is 4 sticks wide × 6 LEDs tall. Two chars fill the 12-LED strip
+        exactly with spacing=0 — ideal for a two-digit percent display.
         """
-        if spacing is None:
-            spacing = self.spacing
-        char_h = 4  # font's original height (becomes width after CW rotation)
-        char_w = 3  # font's original width (becomes height after CW rotation)
         grid = [[bg] * self.ram.LEDS_PER_STICK for _ in range(self.ram.num_sticks)]
 
         led_pos = 0
         for ch in text:
             if led_pos >= self.ram.LEDS_PER_STICK:
                 break
-            cols = glyph_columns(ch)  # 3 col-bytes, each 4 row-bits (bit 0 = top row)
-            for r in range(char_w):  # rotated rows: 0..2
+            rows = glyph_vertical(ch)  # 6 row-bytes, bit c = stick c
+            for r in range(VERT_CHAR_H):
                 led = led_pos + r
                 if led >= self.ram.LEDS_PER_STICK:
                     break
-                for c in range(char_h):  # rotated cols: 0..3 (one per stick)
+                row_byte = rows[r]
+                for c in range(VERT_CHAR_W):
                     if c >= self.ram.num_sticks:
                         break
-                    # 90° CW: new[r][c] = orig[H-1-c][r] where orig[row][col] packs row in bit `row` of cols[col].
-                    bit = (cols[r] >> (char_h - 1 - c)) & 1
-                    if not bit:
+                    if not (row_byte >> c) & 1:
                         continue
                     stick = (self.ram.num_sticks - 1 - c) if self.invert_rows else c
                     led_idx = (self.ram.LEDS_PER_STICK - 1 - led) if self.flip_cols else led
                     grid[stick][led_idx] = color
-            led_pos += char_w + spacing
+            led_pos += VERT_CHAR_H + spacing
 
         self.ram.set_grid(grid)
+
+    def show_big_number(
+        self,
+        value: float,
+        color: RGB = (0, 255, 0),
+        bg: RGB = (0, 0, 0),
+    ) -> None:
+        """Display a 0..99 integer as two big vertically-stacked digits.
+
+        Clamps to two digits: values < 10 get a leading zero, >99 get clamped to 99.
+        """
+        n = max(0, min(99, int(value)))
+        self.show_vertical(f"{n:02d}", color=color, bg=bg, spacing=0)
 
     # ---- number helpers ----
 
