@@ -17,6 +17,7 @@ RGB = Tuple[int, int, int]
 
 _DELAY = 0.01
 _WRITE_DELAY = float(os.environ.get("OMENRGB_WRITE_DELAY", "0.0005"))
+_DEBUG = bool(int(os.environ.get("OMENRGB_DEBUG", "0")))
 
 # Registers (from KingstonFuryDRAMController.h)
 _REG_APPLY = 0x08
@@ -63,13 +64,22 @@ class FuryRAM:
     # ---- low level ----
 
     def _w(self, addr: int, reg: int, val: int, retries: int = 5) -> bool:
+        last_err = None
         for attempt in range(retries):
             try:
                 self._bus.write_byte_data(addr, reg, val)
                 time.sleep(_WRITE_DELAY)
                 return True
-            except OSError:
+            except OSError as e:
+                last_err = e
                 time.sleep(_DELAY * (attempt + 1))
+        if _DEBUG:
+            import sys
+            print(
+                f"[omenrgb] WRITE FAIL addr=0x{addr:02x} reg=0x{reg:02x} "
+                f"val=0x{val:02x} after {retries} retries ({last_err})",
+                file=sys.stderr,
+            )
         return False
 
     @contextmanager
@@ -99,14 +109,16 @@ class FuryRAM:
             time.sleep(_DELAY)
 
     def _init_sticks(self, brightness: int) -> None:
-        with self._lock, self._transaction():
-            for i, a in enumerate(self.addrs):
-                self._w(a, _REG_MODE, _MODE_DIRECT)
-                self._w(a, _REG_BRIGHTNESS, brightness)
-                # INDEX=0 on all sticks — per-stick indices put the controllers
-                # into sync-follower mode where they mirror stick 0's color.
-                self._w(a, _REG_INDEX, 0)
-                self._w(a, _REG_NUM_SLOTS, min(len(self.addrs), 4))
+        # INDEX=0 on all sticks — per-stick indices put the controllers
+        # into sync-follower mode where they mirror stick 0's color.
+        num_slots = min(len(self.addrs), 4)
+        with self._lock:
+            for a in self.addrs:
+                with self._stick_transaction(a):
+                    self._w(a, _REG_MODE, _MODE_DIRECT)
+                    self._w(a, _REG_BRIGHTNESS, brightness)
+                    self._w(a, _REG_INDEX, 0)
+                    self._w(a, _REG_NUM_SLOTS, num_slots)
 
     # ---- public API ----
 
@@ -125,9 +137,10 @@ class FuryRAM:
 
     def set_brightness(self, brightness: int) -> None:
         """0..255 brightness for all sticks."""
-        with self._lock, self._transaction():
+        with self._lock:
             for a in self.addrs:
-                self._w(a, _REG_BRIGHTNESS, brightness & 0xFF)
+                with self._stick_transaction(a):
+                    self._w(a, _REG_BRIGHTNESS, brightness & 0xFF)
 
     def set_grid(self, grid: Sequence[Sequence[RGB]]) -> None:
         """grid[stick_idx][led_idx] -> (r,g,b). Shape must be (num_sticks, 12)."""
