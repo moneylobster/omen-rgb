@@ -125,18 +125,25 @@ class TextDisplay:
     WIDTH = 12
     HEIGHT = 4
 
-    def __init__(self, ram: FuryRAM, invert_rows: bool = True, flip_cols: bool = False):
+    def __init__(
+        self,
+        ram: FuryRAM,
+        invert_rows: bool = False,
+        flip_cols: bool = False,
+        spacing: int = 1,
+    ):
         """
         invert_rows: if True, stick index 0 is bottom row instead of top
         flip_cols: if True, LED index 0 is right instead of left
-        Defaults match a HP Omen 30L/40L with sticks mounted vertically
-        (stick 0 at bottom, LED 0 on the left). Override for other layouts.
+        spacing: blank cols between characters (bump to 2+ if adjacent LEDs bleed)
+        Adjust these after running the orientation demo.
         """
         if ram.num_sticks < self.HEIGHT:
             raise ValueError(f"need at least {self.HEIGHT} sticks, got {ram.num_sticks}")
         self.ram = ram
         self.invert_rows = invert_rows
         self.flip_cols = flip_cols
+        self.spacing = spacing
 
     # ---- core rendering ----
 
@@ -162,7 +169,7 @@ class TextDisplay:
 
     def show(self, text: str, color: RGB = (0, 255, 0), bg: RGB = (0, 0, 0)) -> None:
         """Display static text (first 12 columns' worth, ~3 chars)."""
-        cols = render_columns(text)
+        cols = render_columns(text, spacing=self.spacing)
         grid = self._columns_to_grid(cols, color, bg)
         self.ram.set_grid(grid)
 
@@ -182,7 +189,7 @@ class TextDisplay:
         stop_event: set to break out early
         """
         padding = [0x0] * self.WIDTH
-        base_cols = padding + render_columns(text) + padding
+        base_cols = padding + render_columns(text, spacing=self.spacing) + padding
         step_dt = 1.0 / max(speed, 0.1)
         total_frames = len(base_cols) - self.WIDTH + 1
 
@@ -215,6 +222,50 @@ class TextDisplay:
         t = threading.Thread(target=_run, daemon=True)
         t.start()
         return ScrollHandle(thread=t, stop=stop)
+
+    # ---- vertical (rotated 90° CW) rendering ----
+
+    def show_vertical(
+        self,
+        text: str,
+        color: RGB = (0, 255, 0),
+        bg: RGB = (0, 0, 0),
+        spacing: Optional[int] = None,
+    ) -> None:
+        """Render text rotated 90° CW so it reads down the LED strip.
+
+        Each char is 4 wide × 3 tall after rotation: the 4 cols span the 4 sticks,
+        the 3 rows consume 3 LEDs along the strip. `spacing` blank LEDs between chars.
+        Fits ~3 chars with spacing=1 on a 12-LED strip, 4 chars with spacing=0.
+        """
+        if spacing is None:
+            spacing = self.spacing
+        char_h = 4  # font's original height (becomes width after CW rotation)
+        char_w = 3  # font's original width (becomes height after CW rotation)
+        grid = [[bg] * self.ram.LEDS_PER_STICK for _ in range(self.ram.num_sticks)]
+
+        led_pos = 0
+        for ch in text:
+            if led_pos >= self.ram.LEDS_PER_STICK:
+                break
+            cols = glyph_columns(ch)  # 3 col-bytes, each 4 row-bits (bit 0 = top row)
+            for r in range(char_w):  # rotated rows: 0..2
+                led = led_pos + r
+                if led >= self.ram.LEDS_PER_STICK:
+                    break
+                for c in range(char_h):  # rotated cols: 0..3 (one per stick)
+                    if c >= self.ram.num_sticks:
+                        break
+                    # 90° CW: new[r][c] = orig[H-1-c][r] where orig[row][col] packs row in bit `row` of cols[col].
+                    bit = (cols[r] >> (char_h - 1 - c)) & 1
+                    if not bit:
+                        continue
+                    stick = (self.ram.num_sticks - 1 - c) if self.invert_rows else c
+                    led_idx = (self.ram.LEDS_PER_STICK - 1 - led) if self.flip_cols else led
+                    grid[stick][led_idx] = color
+            led_pos += char_w + spacing
+
+        self.ram.set_grid(grid)
 
     # ---- number helpers ----
 

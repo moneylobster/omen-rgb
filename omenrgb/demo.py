@@ -21,7 +21,7 @@ from .tqdm_hook import RGBtqdm
 def test_pattern():
     """Paint each stick a different color — use to verify physical order."""
     with FuryRAM() as ram:
-        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (180, 255, 0)]
+        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (140, 255, 0)]
         for i in range(ram.num_sticks):
             row = [colors[i % len(colors)]] * ram.LEDS_PER_STICK
             ram.set_stick(i, row)
@@ -77,6 +77,19 @@ def scroll():
         td.show_number(98.42, prefix="ACC:", suffix="%", color=(0, 200, 255), scroll=True)
 
 
+def vertical():
+    """Show text rotated 90° CW, stacked down the LED strip."""
+    with FuryRAM() as ram:
+        ram.set_brightness(64)  # reduce bleed so letters are distinguishable
+        td = TextDisplay(ram)
+        print("vertical 'HI'")
+        td.show_vertical("HI", color=(0, 255, 128))
+        time.sleep(3)
+        print("vertical '123'")
+        td.show_vertical("123", color=(255, 128, 0))
+        time.sleep(3)
+
+
 def training():
     """Simulate a training loop with RGBtqdm + live metric overlay."""
     n_epochs = 5
@@ -121,6 +134,7 @@ DEMOS = {
     "orientation": orientation,
     "progress": progress,
     "scroll": scroll,
+    "vertical": vertical,
     "training": training,
     "fans": fans_progress_demo,
 }
