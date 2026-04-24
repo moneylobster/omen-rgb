@@ -167,7 +167,7 @@ class TextDisplay:
 
         return grid
 
-    def show(self, text: str, color: RGB = (0, 255, 0), bg: RGB = (0, 0, 0)) -> None:
+    def show(self, text: str, color: RGB = (0, 255, 0), bg: RGB = (10, 10, 10)) -> None:
         """Display static text (first 12 columns' worth, ~3 chars)."""
         cols = render_columns(text, spacing=self.spacing)
         grid = self._columns_to_grid(cols, color, bg)
@@ -177,7 +177,7 @@ class TextDisplay:
         self,
         text: str,
         color: RGB = (0, 255, 0),
-        bg: RGB = (0, 0, 0),
+        bg: RGB = (10, 10, 10),
         speed: float = 8.0,
         loops: int = 1,
         stop_event: Optional[threading.Event] = None,
@@ -210,7 +210,7 @@ class TextDisplay:
         self,
         text: str,
         color: RGB = (0, 255, 0),
-        bg: RGB = (0, 0, 0),
+        bg: RGB = (10, 10, 10),
         speed: float = 8.0,
     ) -> "ScrollHandle":
         """Start scrolling in a background thread. Returns a handle to stop/join."""
@@ -229,13 +229,18 @@ class TextDisplay:
         self,
         text: str,
         color: RGB = (0, 255, 0),
-        bg: RGB = (0, 0, 0),
+        bg: RGB = (10, 10, 10),
         spacing: int = 0,
     ) -> None:
         """Render text using the 4x6 vertical font, stacked down the LED strip.
 
         Each char is 4 sticks wide × 6 LEDs tall. Two chars fill the 12-LED strip
         exactly with spacing=0 — ideal for a two-digit percent display.
+
+        LED axis is inverted by default so the first char lands at the "top"
+        end of the strip (high LED index), which matches a tall-display reading
+        convention. flip_cols=True restores first-char-at-LED-0 if that
+        matches your physical orientation.
         """
         grid = [[bg] * self.ram.LEDS_PER_STICK for _ in range(self.ram.num_sticks)]
 
@@ -255,7 +260,9 @@ class TextDisplay:
                     if not (row_byte >> c) & 1:
                         continue
                     stick = (self.ram.num_sticks - 1 - c) if self.invert_rows else c
-                    led_idx = (self.ram.LEDS_PER_STICK - 1 - led) if self.flip_cols else led
+                    # Invert LED axis by default so first char renders at the
+                    # high-LED end (top of a tall display). flip_cols reverts.
+                    led_idx = led if self.flip_cols else (self.ram.LEDS_PER_STICK - 1 - led)
                     grid[stick][led_idx] = color
             led_pos += VERT_CHAR_H + spacing
 
@@ -265,7 +272,7 @@ class TextDisplay:
         self,
         value: float,
         color: RGB = (0, 255, 0),
-        bg: RGB = (0, 0, 0),
+        bg: RGB = (10, 10, 10),
     ) -> None:
         """Display a 0..99 integer as two big vertically-stacked digits.
 
@@ -283,7 +290,7 @@ class TextDisplay:
         suffix: str = "",
         decimals: int = 2,
         color: RGB = (0, 255, 0),
-        bg: RGB = (0, 0, 0),
+        bg: RGB = (10, 10, 10),
         scroll: bool = False,
         speed: float = 8.0,
     ) -> None:
