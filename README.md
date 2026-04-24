@@ -91,9 +91,10 @@ strip exactly, each spanning all 4 sticks:
 
 ```python
 td = TextDisplay(ram)
-td.show_big_number(42, color=(0, 255, 128))        # shows "42" stacked
-td.show_big_number(7, color=(255, 128, 0))         # pads to "07"
-td.show_vertical("HI", color=(0, 200, 255))        # any 2 chars from the 4x6 font
+td.show_big_number(42, color=(0, 255, 128))                       # both digits green
+td.show_big_number(42, color=(0, 255, 128), color2=(255, 128, 0)) # tens green, ones orange
+td.show_big_number(7, color=(255, 128, 0))                        # pads to "07"
+td.show_vertical("HI", colors=[(255, 0, 0), (0, 0, 255)])         # red H, blue I
 ```
 
 The font covers digits, A–Z, and common symbols (`. : % - + = /`). Bit 0 of

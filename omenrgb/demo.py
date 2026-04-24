@@ -84,10 +84,10 @@ def vertical():
         td = TextDisplay(ram)
         for pct in (7, 42, 75, 99):
             print(f"show_big_number({pct})")
-            td.show_big_number(pct, color=(0, 255, 128))
+            td.show_big_number(pct, color=(0, 255, 128), color2=(255, 128, 0))
             time.sleep(1.5)
-        print("letters 'HI'")
-        td.show_vertical("HI", color=(255, 128, 0))
+        print("letters 'HI' (mixed colors)")
+        td.show_vertical("HI", colors=[(255, 128, 0), (0, 200, 255)])
         time.sleep(2)
 
 
@@ -97,10 +97,11 @@ def percent_ramp():
         ram.set_brightness(64)
         td = TextDisplay(ram)
         for pct in range(0, 100, 3):
-            color = gradient((255, 64, 0), (0, 255, 64), pct / 99)
-            td.show_big_number(pct, color=color)
+            tens = gradient((255, 64, 0), (0, 255, 64), pct / 99)
+            ones = gradient((0, 200, 255), (255, 200, 0), pct / 99)
+            td.show_big_number(pct, color=tens, color2=ones)
             time.sleep(0.08)
-        td.show_big_number(99, color=(0, 255, 64))
+        td.show_big_number(99, color=(0, 255, 64), color2=(0, 200, 255))
         time.sleep(2)
 
 

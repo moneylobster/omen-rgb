@@ -225,12 +225,36 @@ class TextDisplay:
 
     # ---- vertical (rotated 90° CW) rendering ----
 
+    def _paint_vertical_glyph(
+        self,
+        grid: List[List[RGB]],
+        ch: str,
+        led_pos: int,
+        color: RGB,
+    ) -> None:
+        """Write a single vertical glyph into an existing grid at led_pos."""
+        rows = glyph_vertical(ch)
+        for r in range(VERT_CHAR_H):
+            led = led_pos + r
+            if led >= self.ram.LEDS_PER_STICK:
+                break
+            row_byte = rows[r]
+            for c in range(VERT_CHAR_W):
+                if c >= self.ram.num_sticks:
+                    break
+                if not (row_byte >> c) & 1:
+                    continue
+                stick = (self.ram.num_sticks - 1 - c) if self.invert_rows else c
+                led_idx = led if self.flip_cols else (self.ram.LEDS_PER_STICK - 1 - led)
+                grid[stick][led_idx] = color
+
     def show_vertical(
         self,
         text: str,
         color: RGB = (0, 255, 0),
         bg: RGB = (10, 10, 10),
         spacing: int = 0,
+        colors: Optional[Sequence[RGB]] = None,
     ) -> None:
         """Render text using the 4x6 vertical font, stacked down the LED strip.
 
@@ -241,29 +265,19 @@ class TextDisplay:
         end of the strip (high LED index), which matches a tall-display reading
         convention. flip_cols=True restores first-char-at-LED-0 if that
         matches your physical orientation.
+
+        `colors` — optional per-character color list. If provided, overrides
+        `color` on a per-char basis; short lists cycle, missing entries fall
+        back to `color`.
         """
         grid = [[bg] * self.ram.LEDS_PER_STICK for _ in range(self.ram.num_sticks)]
 
         led_pos = 0
-        for ch in text:
+        for i, ch in enumerate(text):
             if led_pos >= self.ram.LEDS_PER_STICK:
                 break
-            rows = glyph_vertical(ch)  # 6 row-bytes, bit c = stick c
-            for r in range(VERT_CHAR_H):
-                led = led_pos + r
-                if led >= self.ram.LEDS_PER_STICK:
-                    break
-                row_byte = rows[r]
-                for c in range(VERT_CHAR_W):
-                    if c >= self.ram.num_sticks:
-                        break
-                    if not (row_byte >> c) & 1:
-                        continue
-                    stick = (self.ram.num_sticks - 1 - c) if self.invert_rows else c
-                    # Invert LED axis by default so first char renders at the
-                    # high-LED end (top of a tall display). flip_cols reverts.
-                    led_idx = led if self.flip_cols else (self.ram.LEDS_PER_STICK - 1 - led)
-                    grid[stick][led_idx] = color
+            ch_color = colors[i % len(colors)] if colors else color
+            self._paint_vertical_glyph(grid, ch, led_pos, ch_color)
             led_pos += VERT_CHAR_H + spacing
 
         self.ram.set_grid(grid)
@@ -272,14 +286,19 @@ class TextDisplay:
         self,
         value: float,
         color: RGB = (0, 255, 0),
+        color2: Optional[RGB] = None,
         bg: RGB = (10, 10, 10),
     ) -> None:
         """Display a 0..99 integer as two big vertically-stacked digits.
 
         Clamps to two digits: values < 10 get a leading zero, >99 get clamped to 99.
+        `color2` sets a distinct color for the second (ones) digit; falls back
+        to `color` for both when omitted.
         """
         n = max(0, min(99, int(value)))
-        self.show_vertical(f"{n:02d}", color=color, bg=bg, spacing=0)
+        text = f"{n:02d}"
+        palette = [color, color2 if color2 is not None else color]
+        self.show_vertical(text, color=color, bg=bg, spacing=0, colors=palette)
 
     # ---- number helpers ----
 
