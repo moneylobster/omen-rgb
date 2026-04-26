@@ -72,9 +72,9 @@ def scroll():
         td.show("HI", color=(0, 255, 128))
         time.sleep(2)
         print("scrolling 'TRAINING'")
-        td.scroll("TRAINING", color=(255, 128, 0), speed=10)
+        td.show("TRAINING", color=(255, 128, 0), scroll=True, speed=10)
         print("scrolling number")
-        td.show_number(98.42, prefix="ACC:", suffix="%", color=(0, 200, 255), scroll=True)
+        td.show(98.42, color=(0, 200, 255), prefix="ACC:", suffix="%", scroll=True)
 
 
 def vertical():
@@ -83,11 +83,11 @@ def vertical():
         ram.set_brightness(64)  # reduce bleed so letters are distinguishable
         td = TextDisplay(ram)
         for pct in (7, 42, 75, 99):
-            print(f"show_big_number({pct})")
-            td.show_big_number(pct, color=(0, 255, 128), color2=(255, 128, 0))
+            print(f"big number {pct}")
+            td.show(pct, vertical=True, pad=2, colors=[(0, 255, 128), (255, 128, 0)])
             time.sleep(1.5)
         print("letters 'HI' (mixed colors)")
-        td.show_vertical("HI", colors=[(255, 128, 0), (0, 200, 255)])
+        td.show("HI", vertical=True, colors=[(255, 128, 0), (0, 200, 255)])
         time.sleep(2)
 
 
@@ -99,9 +99,9 @@ def percent_ramp():
         for pct in range(0, 100, 3):
             tens = gradient((255, 64, 0), (0, 255, 64), pct / 99)
             ones = gradient((0, 200, 255), (255, 200, 0), pct / 99)
-            td.show_big_number(pct, color=tens, color2=ones)
+            td.show(pct, vertical=True, pad=2, colors=[tens, ones])
             time.sleep(0.08)
-        td.show_big_number(99, color=(0, 255, 64), color2=(0, 200, 255))
+        td.show(99, vertical=True, pad=2, colors=[(0, 255, 64), (0, 200, 255)])
         time.sleep(2)
 
 
@@ -124,11 +124,11 @@ def training():
             loss = max(0.01, loss * 0.997 + random.uniform(-0.02, 0.01))
         # Between epochs, scroll the current loss briefly
         if td is not None:
-            td.show_number(
+            td.show(
                 loss,
+                color=(0, 255, 128) if loss < 1.0 else (255, 160, 0),
                 prefix="L",
                 decimals=2,
-                color=(0, 255, 128) if loss < 1.0 else (255, 160, 0),
                 scroll=True,
                 speed=14,
             )

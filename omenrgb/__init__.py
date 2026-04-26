@@ -12,7 +12,7 @@ Quick start:
     dash.status("running")                 # color everything status-blue
 
     td = TextDisplay(ram)
-    td.scroll("LOSS: 0.023")               # scroll text across RAM grid
+    td.show("LOSS: 0.023", scroll=True)    # scroll text across RAM grid
 
     # tqdm drop-in
     from omenrgb import RGBtqdm

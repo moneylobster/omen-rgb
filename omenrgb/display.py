@@ -27,6 +27,30 @@ def gradient(cold: RGB, hot: RGB, t: float) -> RGB:
     )
 
 
+def _format_content(
+    content,
+    prefix: str = "",
+    suffix: str = "",
+    decimals: int = 2,
+    pad: int = 0,
+) -> str:
+    """Stringify text/numeric content with prefix/suffix.
+
+    - str content passes through unchanged (still gets prefix/suffix).
+    - float uses `decimals`.
+    - int (and anything else numeric) is zero-padded to `pad` digits when pad > 0.
+    """
+    if isinstance(content, str):
+        body = content
+    elif isinstance(content, float):
+        body = f"{content:.{decimals}f}"
+    elif pad:
+        body = f"{int(content):0{pad}d}"
+    else:
+        body = str(content)
+    return f"{prefix}{body}{suffix}"
+
+
 # Status palette
 STATUS = {
     "idle": (8, 8, 16),
@@ -147,13 +171,21 @@ class TextDisplay:
 
     # ---- core rendering ----
 
+    def _blank_grid(self, bg: RGB) -> List[List[RGB]]:
+        """Fresh background grid: num_sticks rows × LEDS_PER_STICK cols."""
+        return [[bg] * self.ram.LEDS_PER_STICK for _ in range(self.ram.num_sticks)]
+
+    def _fits_horizontal(self, text: str) -> bool:
+        """True iff `text` rendered in the 3x4 font fits in the static window."""
+        return len(render_columns(text, spacing=self.spacing)) <= self.WIDTH
+
     def _columns_to_grid(self, cols: Sequence[int], color: RGB, bg: RGB) -> List[List[RGB]]:
         """Take a list of packed column-bytes, window to WIDTH cols, map to grid."""
         cols = list(cols)[: self.WIDTH]
         while len(cols) < self.WIDTH:
             cols.append(0x0)
 
-        grid = [[bg] * self.ram.LEDS_PER_STICK for _ in range(self.ram.num_sticks)]
+        grid = self._blank_grid(bg)
 
         for col_idx in range(self.WIDTH):
             packed = cols[col_idx]
@@ -167,27 +199,99 @@ class TextDisplay:
 
         return grid
 
-    def show(self, text: str, color: RGB = (0, 255, 0), bg: RGB = (10, 10, 10)) -> None:
-        """Display static text (first 12 columns' worth, ~3 chars)."""
+    # ---- public API: one method renders everything ----
+
+    def show(
+        self,
+        content,
+        color: RGB = (0, 255, 0),
+        bg: RGB = (10, 10, 10),
+        *,
+        vertical: bool = False,
+        scroll: bool = False,
+        speed: float = 8.0,
+        prefix: str = "",
+        suffix: str = "",
+        decimals: int = 2,
+        pad: int = 0,
+        colors: Optional[Sequence[RGB]] = None,
+        spacing: Optional[int] = None,
+    ) -> None:
+        """Render text or a number on the RAM grid.
+
+        content    str or numeric. Numbers are formatted with prefix/suffix and
+                   either `decimals` (floats) or `pad` (zero-pad ints).
+        vertical   Use the 4x6 stacked-down-the-strip font. Two chars fill the
+                   12-LED strip exactly with spacing=0 — ideal for 0..99 readouts.
+                   In vertical mode, `scroll` and `speed` are ignored.
+        scroll     Force a horizontal scroll. Auto-enabled when content overflows
+                   the 12-column window. Blocks for one full pass.
+        colors     Per-char palette. Cycles for short lists; missing entries fall
+                   back to `color`. Used in vertical mode (the horizontal renderer
+                   uses a single `color`).
+        spacing    Override default char spacing — 1 col horizontal, 0 LEDs vertical.
+
+        Examples:
+            td.show("HI")                                       # static
+            td.show("TRAINING", scroll=True, speed=10)          # forced scroll
+            td.show(98.42, prefix="ACC:", suffix="%")           # auto-scroll number
+            td.show("HI", vertical=True, colors=[red, blue])    # vertical 2-color
+            td.show(42, vertical=True, pad=2,                   # 2-digit % readout
+                    colors=[tens, ones])
+        """
+        text = _format_content(content, prefix, suffix, decimals, pad)
+        if vertical:
+            self._render_vertical(text, color, bg, 0 if spacing is None else spacing, colors)
+            return
+        if scroll or not self._fits_horizontal(text):
+            self._scroll(text, color, bg, speed=speed, loops=1, stop_event=None)
+        else:
+            self._render_static(text, color, bg)
+
+    def scroll_async(
+        self,
+        content,
+        color: RGB = (0, 255, 0),
+        bg: RGB = (10, 10, 10),
+        *,
+        speed: float = 8.0,
+        prefix: str = "",
+        suffix: str = "",
+        decimals: int = 2,
+    ) -> "ScrollHandle":
+        """Scroll text in a background thread. Returns a handle to stop/join.
+
+        Loops indefinitely until handle.stop() is called. Mirrors `show()`'s
+        formatting params for numeric content.
+        """
+        text = _format_content(content, prefix, suffix, decimals)
+        stop = threading.Event()
+        thread = threading.Thread(
+            target=self._scroll,
+            args=(text, color, bg),
+            kwargs={"speed": speed, "loops": 0, "stop_event": stop},
+            daemon=True,
+        )
+        thread.start()
+        return ScrollHandle(thread=thread, stop=stop)
+
+    # ---- horizontal renderer ----
+
+    def _render_static(self, text: str, color: RGB, bg: RGB) -> None:
         cols = render_columns(text, spacing=self.spacing)
         grid = self._columns_to_grid(cols, color, bg)
         self.ram.set_grid(grid)
 
-    def scroll(
+    def _scroll(
         self,
         text: str,
-        color: RGB = (0, 255, 0),
-        bg: RGB = (10, 10, 10),
-        speed: float = 8.0,
-        loops: int = 1,
-        stop_event: Optional[threading.Event] = None,
+        color: RGB,
+        bg: RGB,
+        *,
+        speed: float,
+        loops: int,
+        stop_event: Optional[threading.Event],
     ) -> None:
-        """Scroll text right-to-left across the grid.
-
-        speed: columns per second
-        loops: number of full passes (1 default; use 0 for infinite — use stop_event!)
-        stop_event: set to break out early
-        """
         padding = [0x0] * self.WIDTH
         base_cols = padding + render_columns(text, spacing=self.spacing) + padding
         step_dt = 1.0 / max(speed, 0.1)
@@ -206,24 +310,25 @@ class TextDisplay:
             if loops and loop >= loops:
                 return
 
-    def scroll_async(
+    # ---- vertical renderer ----
+
+    def _render_vertical(
         self,
         text: str,
-        color: RGB = (0, 255, 0),
-        bg: RGB = (10, 10, 10),
-        speed: float = 8.0,
-    ) -> "ScrollHandle":
-        """Start scrolling in a background thread. Returns a handle to stop/join."""
-        stop = threading.Event()
-
-        def _run():
-            self.scroll(text, color=color, bg=bg, speed=speed, loops=0, stop_event=stop)
-
-        t = threading.Thread(target=_run, daemon=True)
-        t.start()
-        return ScrollHandle(thread=t, stop=stop)
-
-    # ---- vertical (rotated 90° CW) rendering ----
+        color: RGB,
+        bg: RGB,
+        spacing: int,
+        colors: Optional[Sequence[RGB]],
+    ) -> None:
+        grid = self._blank_grid(bg)
+        led_pos = 0
+        for i, ch in enumerate(text):
+            if led_pos >= self.ram.LEDS_PER_STICK:
+                break
+            ch_color = colors[i % len(colors)] if colors else color
+            self._paint_vertical_glyph(grid, ch, led_pos, ch_color)
+            led_pos += VERT_CHAR_H + spacing
+        self.ram.set_grid(grid)
 
     def _paint_vertical_glyph(
         self,
@@ -232,7 +337,6 @@ class TextDisplay:
         led_pos: int,
         color: RGB,
     ) -> None:
-        """Write a single vertical glyph into an existing grid at led_pos."""
         rows = glyph_vertical(ch)
         for r in range(VERT_CHAR_H):
             led = led_pos + r
@@ -247,81 +351,6 @@ class TextDisplay:
                 stick = (self.ram.num_sticks - 1 - c) if self.invert_rows else c
                 led_idx = led if self.flip_cols else (self.ram.LEDS_PER_STICK - 1 - led)
                 grid[stick][led_idx] = color
-
-    def show_vertical(
-        self,
-        text: str,
-        color: RGB = (0, 255, 0),
-        bg: RGB = (10, 10, 10),
-        spacing: int = 0,
-        colors: Optional[Sequence[RGB]] = None,
-    ) -> None:
-        """Render text using the 4x6 vertical font, stacked down the LED strip.
-
-        Each char is 4 sticks wide × 6 LEDs tall. Two chars fill the 12-LED strip
-        exactly with spacing=0 — ideal for a two-digit percent display.
-
-        LED axis is inverted by default so the first char lands at the "top"
-        end of the strip (high LED index), which matches a tall-display reading
-        convention. flip_cols=True restores first-char-at-LED-0 if that
-        matches your physical orientation.
-
-        `colors` — optional per-character color list. If provided, overrides
-        `color` on a per-char basis; short lists cycle, missing entries fall
-        back to `color`.
-        """
-        grid = [[bg] * self.ram.LEDS_PER_STICK for _ in range(self.ram.num_sticks)]
-
-        led_pos = 0
-        for i, ch in enumerate(text):
-            if led_pos >= self.ram.LEDS_PER_STICK:
-                break
-            ch_color = colors[i % len(colors)] if colors else color
-            self._paint_vertical_glyph(grid, ch, led_pos, ch_color)
-            led_pos += VERT_CHAR_H + spacing
-
-        self.ram.set_grid(grid)
-
-    def show_big_number(
-        self,
-        value: float,
-        color: RGB = (0, 255, 0),
-        color2: Optional[RGB] = None,
-        bg: RGB = (10, 10, 10),
-    ) -> None:
-        """Display a 0..99 integer as two big vertically-stacked digits.
-
-        Clamps to two digits: values < 10 get a leading zero, >99 get clamped to 99.
-        `color2` sets a distinct color for the second (ones) digit; falls back
-        to `color` for both when omitted.
-        """
-        n = max(0, min(99, int(value)))
-        text = f"{n:02d}"
-        palette = [color, color2 if color2 is not None else color]
-        self.show_vertical(text, color=color, bg=bg, spacing=0, colors=palette)
-
-    # ---- number helpers ----
-
-    def show_number(
-        self,
-        value: float,
-        prefix: str = "",
-        suffix: str = "",
-        decimals: int = 2,
-        color: RGB = (0, 255, 0),
-        bg: RGB = (10, 10, 10),
-        scroll: bool = False,
-        speed: float = 8.0,
-    ) -> None:
-        """Format and show a number. Auto-scrolls if too long to fit."""
-        fmt_value = f"{value:.{decimals}f}" if isinstance(value, float) else str(value)
-        text = f"{prefix}{fmt_value}{suffix}"
-        # 3 cols per char + 1 spacing + trailing padding; fits roughly 3 chars static
-        fits_static = (len(text) * 4 - 1) <= self.WIDTH
-        if scroll or not fits_static:
-            self.scroll(text, color=color, bg=bg, speed=speed, loops=1)
-        else:
-            self.show(text, color=color, bg=bg)
 
 
 class ScrollHandle:
