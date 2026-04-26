@@ -75,24 +75,17 @@ class Dashboard:
     def progress(
         self,
         frac: float,
-        cold: RGB = (255, 64, 0),
-        hot: RGB = (0, 255, 64),
+        color: RGB = (0, 255, 64),
         background: RGB = (8, 8, 8),
     ) -> None:
-        """Fill RAM left-to-right with a gradient; fans show overall color."""
+        """Fill RAM left-to-right in a solid color; fans light bottom→top in thirds."""
         frac = max(0.0, min(1.0, frac))
         if self.ram:
             n = self.ram.total_leds
             lit = int(frac * n)
-            pixels: List[RGB] = []
-            for i in range(n):
-                if i < lit:
-                    pixels.append(gradient(cold, hot, i / max(n - 1, 1)))
-                else:
-                    pixels.append(background)
+            pixels: List[RGB] = [color if i < lit else background for i in range(n)]
             self.ram.set_linear(pixels)
         if self.omen:
-            color = gradient(cold, hot, frac)
             # Bottom fan fills first (0-33%), middle (33-66%), top (66-100%)
             bottom = color if frac > 0.0 else background
             middle = color if frac > 1 / 3 else background

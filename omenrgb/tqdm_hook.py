@@ -36,8 +36,7 @@ class RGBtqdm(_tqdm):
 
     throttle_seconds: float = 0.12
     outer_only: bool = True
-    progress_cold: RGB = (255, 64, 0)
-    progress_hot: RGB = (0, 255, 64)
+    progress_color: RGB = (0, 255, 64)
 
     @classmethod
     def _lazy_init(cls) -> None:
@@ -81,11 +80,7 @@ class RGBtqdm(_tqdm):
         RGBtqdm._last_update = now
         frac = self.n / self.total
         try:
-            RGBtqdm._dash.progress(
-                frac,
-                cold=RGBtqdm.progress_cold,
-                hot=RGBtqdm.progress_hot,
-            )
+            RGBtqdm._dash.progress(frac, color=RGBtqdm.progress_color)
         except Exception:
             pass
 
