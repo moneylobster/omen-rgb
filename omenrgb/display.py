@@ -62,6 +62,14 @@ STATUS = {
     "done": (0, 255, 64),
 }
 
+# Default per-character palette for vertical mode.
+# Vermillion + sky blue from the Okabe-Ito color-blind-safe palette
+# (Wong B., "Color blindness", Nature Methods 8, 441, 2011) — the dominant
+# channels don't overlap, so the warm/cool split survives the heavy
+# adjacent-LED bleed from RAM-stick diffusers. Trimmed ~15–20% from the
+# reference values to keep brightness modest.
+DEFAULT_VERTICAL_COLORS: Tuple[RGB, RGB] = ((180, 80, 0), (60, 140, 200))
+
 
 class Dashboard:
     """Composite display that drives RAM + Omen case together."""
@@ -221,20 +229,23 @@ class TextDisplay:
                    the 12-column window. Blocks for one full pass.
         colors     Per-char palette. Cycles for short lists; missing entries fall
                    back to `color`. Used in vertical mode (the horizontal renderer
-                   uses a single `color`).
+                   uses a single `color`). When omitted in vertical mode, defaults
+                   to DEFAULT_VERTICAL_COLORS — a high-contrast warm/cool pair
+                   tuned to survive diffuser bleed. Pass `colors=[color]` for a
+                   single-color vertical render.
         spacing    Override default char spacing — 1 col horizontal, 0 LEDs vertical.
 
         Examples:
             td.show("HI")                                       # static
             td.show("TRAINING", scroll=True, speed=10)          # forced scroll
             td.show(98.42, prefix="ACC:", suffix="%")           # auto-scroll number
-            td.show("HI", vertical=True, colors=[red, blue])    # vertical 2-color
-            td.show(42, vertical=True, pad=2,                   # 2-digit % readout
-                    colors=[tens, ones])
+            td.show(42, vertical=True, pad=2)                   # 2-digit, default palette
+            td.show("HI", vertical=True, colors=[red, blue])    # custom palette
         """
         text = _format_content(content, prefix, suffix, decimals, pad)
         if vertical:
-            self._render_vertical(text, color, bg, 0 if spacing is None else spacing, colors)
+            palette = colors if colors is not None else DEFAULT_VERTICAL_COLORS
+            self._render_vertical(text, color, bg, 0 if spacing is None else spacing, palette)
             return
         if scroll or not self._fits_horizontal(text):
             self._scroll(text, color, bg, speed=speed, loops=1, stop_event=None)

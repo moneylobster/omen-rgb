@@ -20,12 +20,13 @@ Quick start:
         ...
 """
 
-from .display import Dashboard, ScrollHandle, STATUS, TextDisplay, gradient
+from .display import DEFAULT_VERTICAL_COLORS, Dashboard, ScrollHandle, STATUS, TextDisplay, gradient
 from .omen import FAN_ZONES, Mode, OmenCase, Speed, Zone
 from .ram import FuryRAM
 from .tqdm_hook import RGBtqdm, get_dashboard, get_text_display
 
 __all__ = [
+    "DEFAULT_VERTICAL_COLORS",
     "Dashboard",
     "FAN_ZONES",
     "FuryRAM",

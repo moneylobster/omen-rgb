@@ -92,19 +92,24 @@ sticks:
 
 ```python
 td = TextDisplay(ram)
-td.show(42, vertical=True, pad=2, color=(0, 255, 128))                       # both digits green
-td.show(42, vertical=True, pad=2, colors=[(0, 255, 128), (255, 128, 0)])     # tens green, ones orange
-td.show(7,  vertical=True, pad=2, color=(255, 128, 0))                       # pads to "07"
+td.show(42, vertical=True, pad=2)                                            # default high-contrast palette
+td.show(42, vertical=True, pad=2, colors=[(0, 255, 128), (255, 128, 0)])     # custom palette
+td.show(7,  vertical=True, pad=2, colors=[(255, 128, 0)])                    # single color, pads to "07"
 td.show("HI", vertical=True, colors=[(255, 0, 0), (0, 0, 255)])              # red H, blue I
 ```
 
-`pad=N` zero-pads integer values; `colors=[...]` is an optional per-character
-palette that overrides `color` (cycles for short lists). The font covers
-digits, A–Z, and common symbols (`. : % - + = /`). Bit 0 of each row maps to
-stick 0. Vertical mode writes the first character at the high-LED end of the
-strip by default (reads top-to-bottom on a tall display); pass
-`flip_cols=True` to `TextDisplay` if your physical orientation has LED 0 at
-the top instead.
+`pad=N` zero-pads integer values. `colors=[...]` is an optional per-character
+palette (cycles for short lists). When omitted in vertical mode, the default
+is `DEFAULT_VERTICAL_COLORS` — vermillion + sky blue from the Okabe-Ito
+color-blind-safe palette (Wong, *Nature Methods* 2011), trimmed for the
+heavy adjacent-LED bleed of RAM diffusers. Pass `colors=[c]` to force a
+single-color vertical render.
+
+The font covers digits, A–Z, and common symbols (`. : % - + = /`). Bit 0 of
+each row maps to stick 0. Vertical mode writes the first character at the
+high-LED end of the strip by default (reads top-to-bottom on a tall display);
+pass `flip_cols=True` to `TextDisplay` if your physical orientation has LED 0
+at the top instead.
 
 `show()` defaults to a dim `(10, 10, 10)` background instead of pure black,
 which makes adjacent-LED bleed less distracting on unused pixels. Override

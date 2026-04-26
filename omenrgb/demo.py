@@ -83,9 +83,12 @@ def vertical():
         ram.set_brightness(64)  # reduce bleed so letters are distinguishable
         td = TextDisplay(ram)
         for pct in (7, 42, 75, 99):
-            print(f"big number {pct}")
-            td.show(pct, vertical=True, pad=2, colors=[(0, 255, 128), (255, 128, 0)])
+            print(f"big number {pct} (default palette)")
+            td.show(pct, vertical=True, pad=2)
             time.sleep(1.5)
+        print("custom palette")
+        td.show(42, vertical=True, pad=2, colors=[(0, 255, 128), (255, 128, 0)])
+        time.sleep(1.5)
         print("letters 'HI' (mixed colors)")
         td.show("HI", vertical=True, colors=[(255, 128, 0), (0, 200, 255)])
         time.sleep(2)
