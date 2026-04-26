@@ -9,6 +9,7 @@ import os
 import threading
 import time
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
 from smbus2 import SMBus
@@ -34,6 +35,42 @@ _END = 0x44
 _MODE_DIRECT = 0x10
 
 
+def _is_supported_host() -> bool:
+    """Allowlist check against DMI to avoid stray writes to other I2C devices.
+
+    The Kingston Fury controllers live at fixed SMBus addresses (0x60-0x63 by
+    default). On non-Omen Linux boxes those same addresses can belong to
+    monitor DDC channels, EEPROMs, fan controllers, etc — opening a FuryRAM
+    there would scribble RGB-protocol bytes onto unrelated peripherals. Refuse
+    by default unless DMI confirms an Omen host (currently: Omen 40L Desktop;
+    add other models here once tested).
+
+    Honours the OMENRGB_FORCE env var:
+      "1" / "true" / "yes" — bypass the check (for testing / unsupported but
+                             known-compatible hosts; you accept the risk)
+      "0" / "false" / "no" — refuse outright (useful in CI / sandboxes)
+      unset / other        — auto-detect via /sys/class/dmi/id
+    """
+    flag = os.environ.get("OMENRGB_FORCE", "").strip().lower()
+    if flag in {"1", "true", "yes", "on"}:
+        return True
+    if flag in {"0", "false", "no", "off"}:
+        return False
+
+    dmi = Path("/sys/class/dmi/id")
+    try:
+        product = (dmi / "product_name").read_text().strip().upper()
+        vendor = (dmi / "sys_vendor").read_text().strip().upper()
+    except OSError:
+        return False
+    return "OMEN 40L" in product and ("HP" in vendor or "HEWLETT" in vendor)
+
+
+class UnsupportedHostError(RuntimeError):
+    """Raised when FuryRAM is constructed on a host we can't positively identify
+    as an Omen 40L. Set OMENRGB_FORCE=1 to bypass at your own risk."""
+
+
 class FuryRAM:
     """Direct driver for Kingston Fury DDR5 RGB sticks.
 
@@ -55,6 +92,14 @@ class FuryRAM:
         addrs: Sequence[int] = (0x60, 0x61, 0x62, 0x63),
         brightness: int = 0xFF,
     ):
+        if not _is_supported_host():
+            raise UnsupportedHostError(
+                "FuryRAM refuses to open: host is not a recognised Omen 40L "
+                "(checked /sys/class/dmi/id). Writing to SMBus addresses "
+                f"{[hex(a) for a in addrs]} on an unknown host could disturb "
+                "unrelated I2C peripherals (DDC, sensors, EEPROMs). "
+                "Set OMENRGB_FORCE=1 to override if you know the host is compatible."
+            )
         self._bus = SMBus(bus)
         self.addrs = list(addrs)
         self._lock = threading.RLock()

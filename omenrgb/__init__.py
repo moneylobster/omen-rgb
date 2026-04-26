@@ -22,7 +22,7 @@ Quick start:
 
 from .display import DEFAULT_VERTICAL_COLORS, Dashboard, ScrollHandle, STATUS, TextDisplay, gradient
 from .omen import FAN_ZONES, Mode, OmenCase, Speed, Zone
-from .ram import FuryRAM
+from .ram import FuryRAM, UnsupportedHostError, _is_supported_host as is_supported_host
 from .tqdm_hook import RGBtqdm, get_dashboard, get_text_display
 
 __all__ = [
@@ -30,6 +30,8 @@ __all__ = [
     "Dashboard",
     "FAN_ZONES",
     "FuryRAM",
+    "UnsupportedHostError",
+    "is_supported_host",
     "Mode",
     "OmenCase",
     "RGBtqdm",
