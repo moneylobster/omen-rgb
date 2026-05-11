@@ -63,7 +63,10 @@ def _is_supported_host() -> bool:
         vendor = (dmi / "sys_vendor").read_text().strip().upper()
     except OSError:
         return False
-    return "OMEN 40L" in product and ("HP" in vendor or "HEWLETT" in vendor)
+    # Match OMEN and 40L as independent tokens — real DMI product_name is
+    # e.g. "OMEN by HP 40L Gaming Desktop GT21-...", so the literal substring
+    # "OMEN 40L" never appears.
+    return "OMEN" in product and "40L" in product and ("HP" in vendor or "HEWLETT" in vendor)
 
 
 class UnsupportedHostError(RuntimeError):
