@@ -159,11 +159,16 @@ class OmenCase:
             for z in Zone:
                 self._write_off(int(z))
 
-    def close(self) -> None:
+    def close(self, off: bool = True) -> None:
+        """Release the HID handle. By default, blanks the device first so
+        `with OmenCase()` cleans up after itself. Pass `off=False` to leave
+        the last-written colors in place — useful for status-display callers
+        that want an error/done color to persist after release."""
         if self._closed:
             return
         try:
-            self.off()
+            if off:
+                self.off()
         finally:
             self._dev.close()
             self._closed = True

@@ -137,11 +137,11 @@ class Dashboard:
         if self.omen:
             self.omen.off()
 
-    def close(self) -> None:
+    def close(self, off: bool = True) -> None:
         if self.ram:
-            self.ram.close()
+            self.ram.close(off=off)
         if self.omen:
-            self.omen.close()
+            self.omen.close(off=off)
 
 
 class TextDisplay:

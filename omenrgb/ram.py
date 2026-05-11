@@ -237,11 +237,15 @@ class FuryRAM:
     def off(self) -> None:
         self.fill((0, 0, 0))
 
-    def close(self) -> None:
+    def close(self, off: bool = True) -> None:
+        """Release the SMBus handle. By default, blanks the device first so
+        `with FuryRAM()` cleans up after itself. Pass `off=False` to leave
+        the last-written colors in place."""
         if self._closed:
             return
         try:
-            self.off()
+            if off:
+                self.off()
         finally:
             self._bus.close()
             self._closed = True
